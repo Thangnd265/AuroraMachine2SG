@@ -6,7 +6,10 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
+using Microsoft.Win32;
 using AuroraMachine2SG.App.Dialogs;
+using AuroraMachine2SG.Core.Models;
+using AuroraMachine2SG.Core.Sdk;
 using AuroraMachine2SG.Core.Services;
 using AuroraMachine2SG.Core.ViewModels;
 
@@ -32,10 +35,9 @@ public partial class MainWindow : Window
         {
             if (OperationalDialogs.ShowSettingsLogin(this, _vm.Runtime))
                 _vm.TryNavigate(targetMain, targetSub);
-            SyncMainMenuRadio();
         };
 
-        _simTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(900) };
+        _simTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(850) };
         _simTimer.Tick += (_, _) =>
         {
             ClockText.Text = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
@@ -51,6 +53,13 @@ public partial class MainWindow : Window
         Loaded += MainWindow_Loaded;
     }
 
+    public void UpdateSimulationTimerSpeed()
+    {
+        double ms = Math.Clamp(850.0 / _vm.Runtime.SimSpeedMultiplier, 120.0, 3200.0);
+        _simTimer.Interval = TimeSpan.FromMilliseconds(ms);
+        _vm.StatusBanner = $"Simulation Speed set to {_vm.Runtime.SimSpeedMultiplier:F2}x ({ms:F0} ms/tick).";
+    }
+
     private void MainWindow_Loaded(object sender, RoutedEventArgs e)
     {
         HomeViewHost.RefreshCharts();
@@ -63,7 +72,7 @@ public partial class MainWindow : Window
         if (!_vm.Runtime.StartProduction())
             _vm.StatusBanner = "Cannot Start: Ensure Safety Door is Locked and Active Alarms are cleared.";
         else
-            _vm.StatusBanner = "Main MultiSequence RUNNING (HSG + MPS Stations Active).";
+            _vm.StatusBanner = $"RUNNING [{_vm.Runtime.ActiveProfile.DisplayTitle}]";
     }
 
     private void Pause_Click(object s, RoutedEventArgs e)
@@ -78,12 +87,62 @@ public partial class MainWindow : Window
         _vm.StatusBanner = "Stopped -> HIVE PlannedDT QR Generated.";
     }
 
+    private void StepAllOnce_Click(object s, RoutedEventArgs e)
+    {
+        foreach (var seq in _vm.Runtime.ActiveSequences)
+            seq.StepOneNode();
+    }
+
+    private void JumpToFlowchart_Click(object s, RoutedEventArgs e)
+    {
+        if (_vm.Runtime.Hive.CurrentPermission < PermissionLevel.Engineer)
+            _vm.Runtime.Hive.SwipeBadge("DEV-AUTO", "Developer", "PRI", PermissionLevel.Admin);
+        _vm.TryNavigate("Control", "Sequence");
+    }
+
+    private void ClearLog_Click(object s, RoutedEventArgs e) => _vm.Runtime.LoggerHub.Clear();
+
+    private void ProfileCombo_Changed(object s, SelectionChangedEventArgs e)
+    {
+        _vm.ControlVM.RefreshSelectionsAfterProfileSwitch();
+        _vm.StatusBanner = $"Active Profile: {_vm.Runtime.ActiveProfile.DisplayTitle}";
+    }
+
+    private void LoadPluginDll_Click(object s, RoutedEventArgs e)
+    {
+        var dlg = new OpenFileDialog
+        {
+            Title = "Select Custom IEquipmentSetup Plugin (.dll)",
+            Filter = "NET 8 Machine Plugin (*.dll)|*.dll"
+        };
+        if (dlg.ShowDialog(this) == true)
+        {
+            try
+            {
+                var loaded = BuiltInEquipmentProfiles.LoadFromAssemblyFile(dlg.FileName);
+                if (loaded.Count == 0)
+                {
+                    _vm.Runtime.LoggerHub.Warn("PluginLoader", $"No public IEquipmentSetup found in '{Path.GetFileName(dlg.FileName)}'.");
+                    _vm.StatusBanner = "No IEquipmentSetup class found in selected DLL.";
+                    return;
+                }
+                foreach (var p in loaded)
+                    _vm.Runtime.AvailableProfiles.Add(p);
+                _vm.Runtime.LoadEquipmentProfile(loaded[0]);
+                _vm.ControlVM.RefreshSelectionsAfterProfileSwitch();
+                _vm.StatusBanner = $"Loaded external plugin: {loaded[0].DisplayTitle}";
+            }
+            catch (Exception ex)
+            {
+                _vm.Runtime.LoggerHub.Error("PluginLoader", $"Failed loading DLL: {ex.Message}");
+                _vm.StatusBanner = $"Plugin load error: {ex.Message}";
+            }
+        }
+    }
+
     private void OpenFolder_Click(object s, RoutedEventArgs e)
     {
-        try
-        {
-            Process.Start(new ProcessStartInfo { FileName = _vm.Runtime.Storage.BasePath, UseShellExecute = true });
-        }
+        try { Process.Start(new ProcessStartInfo { FileName = _vm.Runtime.Storage.BasePath, UseShellExecute = true }); }
         catch { }
     }
 
@@ -92,7 +151,6 @@ public partial class MainWindow : Window
     private void HivePill_Click(object s, MouseButtonEventArgs e) => OperationalDialogs.ShowHiveDowntimeAndMaintenance(this, _vm.Runtime);
     private void LockScreen_Click(object s, RoutedEventArgs e) => _vm.IsScreenLocked = true;
     private void UnlockScreen_Click(object s, RoutedEventArgs e) => _vm.IsScreenLocked = false;
-
     private void LoginBtn_Click(object s, RoutedEventArgs e) => OperationalDialogs.ShowSettingsLogin(this, _vm.Runtime);
 
     private void LangCombo_SelectionChanged(object s, SelectionChangedEventArgs e)
@@ -108,26 +166,13 @@ public partial class MainWindow : Window
     private void MainNav_Click(object s, RoutedEventArgs e)
     {
         if (s is RadioButton { Tag: string mainMenu })
-        {
             _vm.TryNavigate(mainMenu);
-            SyncMainMenuRadio();
-        }
     }
 
     private void SubMenu_Click(object s, RoutedEventArgs e)
     {
         if (s is Button { Tag: string sub })
             _vm.SelectSubMenu(sub);
-    }
-
-    private void SyncMainMenuRadio()
-    {
-        NavMain.IsChecked = _vm.ActiveMainMenu == "Main";
-        NavControl.IsChecked = _vm.ActiveMainMenu == "Control";
-        NavRecipe.IsChecked = _vm.ActiveMainMenu == "Recipe";
-        NavAlarm.IsChecked = _vm.ActiveMainMenu == "Alarm";
-        NavMonitoring.IsChecked = _vm.ActiveMainMenu == "Monitoring";
-        NavSetting.IsChecked = _vm.ActiveMainMenu == "Setting";
     }
 
     private void Window_PreviewKeyDown(object sender, KeyEventArgs e)

@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using AuroraMachine2SG.Core.Models;
+using AuroraMachine2SG.Core.Sdk;
 using AuroraMachine2SG.Core.ViewModels;
 
 namespace AuroraMachine2SG.Core.Services;
@@ -51,8 +52,32 @@ public sealed class MachineRuntime : ObservableObject
     public ObservableCollection<PdcaMeasurementItem> PdcaItems { get; } = [];
     public ObservableCollection<AxisStatus> Axes { get; } = [];
     public ObservableCollection<IoBitItem> IoBits { get; } = [];
+    private IEquipmentSetup _activeProfile;
+    private double _simSpeedMultiplier = 1.0;
+
     public ObservableCollection<BusopCheckItem> BusopItems { get; } = [];
     public ObservableCollection<LogConfigItem> LogConfigs { get; } = [];
+    public ObservableCollection<SequenceRunner> ActiveSequences { get; } = [];
+    public ObservableCollection<IEquipmentSetup> AvailableProfiles { get; } = [];
+    public ObservableCollection<string> StationBadgeNames { get; } = ["HSGProcess", "MPSProcess"];
+    public HisLoggerHub LoggerHub { get; } = new();
+    public SequenceContext SharedSequenceContext { get; }
+
+    public IEquipmentSetup ActiveProfile
+    {
+        get => _activeProfile;
+        set
+        {
+            if (value is not null && !ReferenceEquals(_activeProfile, value))
+                LoadEquipmentProfile(value);
+        }
+    }
+
+    public double SimSpeedMultiplier
+    {
+        get => _simSpeedMultiplier;
+        set => SetProperty(ref _simSpeedMultiplier, Math.Clamp(value, 0.25, 4.0));
+    }
 
     public double[] HourlyCounts { get; } = [14, 16, 15, 12, 18, 22, 28, 31, 35, 38, 36, 34, 29, 37, 39, 41, 38, 33, 27, 24, 21, 19, 17, 15];
     public double[] WeeklyCounts { get; } = [612, 648, 635, 671, 690, 580, 495];
@@ -64,8 +89,92 @@ public sealed class MachineRuntime : ObservableObject
         HiveCfg = storage.LoadHiveConfig();
         Loc.SetLanguage(Equipment.Language);
         Hive = new HiveStateMachine(HiveCfg, storage);
+        SharedSequenceContext = new SequenceContext(LoggerHub)
+        {
+            RaiseAlarmCallback = (code, _) => RaiseAlarm(code, isHeavy: true)
+        };
+
+        foreach (var p in BuiltInEquipmentProfiles.GetAll())
+            AvailableProfiles.Add(p);
+        _activeProfile = AvailableProfiles[0];
 
         SeedCollections();
+        LoadEquipmentProfile(_activeProfile);
+    }
+
+    public void LoadEquipmentProfile(IEquipmentSetup profile)
+    {
+        bool wasRunning = IsSequenceRunning;
+        if (wasRunning) PauseProduction();
+
+        _activeProfile = profile;
+        OnPropertyChanged(nameof(ActiveProfile));
+
+        Equipment.EquipmentName = profile.EquipmentName;
+        OnPropertyChanged(nameof(Equipment));
+
+        Devices.Clear();
+        foreach (var d in profile.CreateDevices())
+            Devices.Add(d);
+
+        StationBadgeNames.Clear();
+        foreach (var st in profile.StationNames)
+            StationBadgeNames.Add(st);
+
+        ActiveSequences.Clear();
+        foreach (var seq in profile.CreateSequences(SharedSequenceContext))
+            ActiveSequences.Add(seq);
+
+        LoggerHub.Info("PlatformHost", $"Loaded Equipment Profile [{profile.DisplayTitle}] ({ActiveSequences.Count} sequences, {Devices.Count} devices, Topology={profile.Topology}).");
+    }
+
+    public string ExecuteSimulatedDeviceTest(DeviceEntry device, string commandName, string customArg, bool forceNg)
+    {
+        if (!device.IsActivated)
+        {
+            var inactiveMsg = $"[REJECTED] {device.DeviceId} is deactivated. Activate it first.";
+            device.StatusMessage = inactiveMsg;
+            LoggerHub.Warn(device.DeviceId, inactiveMsg);
+            return inactiveMsg;
+        }
+
+        string rx = forceNg
+            ? $"RX <= NG | ERR_SIMUL_FAIL ({commandName})"
+            : device.Category switch
+            {
+                "AutoID" => $"RX <= OK | SN={(string.IsNullOrWhiteSpace(customArg) ? $"V54-BCR-{_serialCounter + 1:00000}" : customArg)}",
+                "Vision" => $"RX <= OK | dX={(_rng.NextDouble() - 0.5) * 0.018:+0.0000;-0.0000}mm, dY={(_rng.NextDouble() - 0.5) * 0.018:+0.0000;-0.0000}mm, Score=98.7%",
+                "Actuator" => $"RX <= OK | PeakTorque={2.84 + (_rng.NextDouble() - 0.5) * 0.12:F3}Nm, Angle=2840deg",
+                "MES" => $"RX <= HTTP 200 OK | {{\"status\":\"ok\",\"endpoint\":\"{device.EndpointOrPort}\",\"cmd\":\"{commandName}\"}}",
+                "Hermes" => $"RX <= BoardAvailable XML Ack (IPC-HERMES-9852)",
+                "Sensor" => $"RX <= OK | Value={10.0 + (_rng.NextDouble() - 0.5) * 0.04:F4}",
+                _ => $"RX <= OK | {commandName} ({customArg}) Ack in 4.2ms"
+            };
+
+        device.StatusMessage = rx;
+        if (forceNg) LoggerHub.Error(device.DeviceId, $"TX => {commandName}({customArg}) | {rx}");
+        else LoggerHub.Info(device.DeviceId, $"TX => {commandName}({customArg}) | {rx}");
+        return rx;
+    }
+
+    public int ImportExternalConfigFolder(string externalFolder)
+    {
+        if (!Directory.Exists(externalFolder)) return 0;
+        int copied = 0;
+        foreach (var sub in new[] { "_config_setting", "_config_recipe", "_config_device", "_alarm" })
+        {
+            var srcDir = Path.Combine(externalFolder, sub);
+            if (!Directory.Exists(srcDir)) continue;
+            var dstDir = Path.Combine(Storage.BasePath, sub);
+            Directory.CreateDirectory(dstDir);
+            foreach (var file in Directory.GetFiles(srcDir, "*.*", SearchOption.TopDirectoryOnly))
+            {
+                File.Copy(file, Path.Combine(dstDir, Path.GetFileName(file)), overwrite: true);
+                copied++;
+            }
+        }
+        LoggerHub.Info("ConfigImport", $"Imported {copied} config files from '{externalFolder}'.");
+        return copied;
     }
 
     public bool IsSequenceRunning
@@ -222,6 +331,14 @@ public sealed class MachineRuntime : ObservableObject
             StationMonitors[i].HasProduct = HsgSlots[i].HasProduct;
             StationMonitors[i].No = HsgSlots[i].No;
             StationMonitors[i].SerialNo = HsgSlots[i].SerialNo;
+        }
+
+        // Step all active sequence state-machine graphs node-by-node so Flowchart & HisLogger show live execution!
+        foreach (var seq in ActiveSequences)
+        {
+            if (seq.SequenceId.StartsWith("MPS", StringComparison.OrdinalIgnoreCase) && !UseMps)
+                continue;
+            seq.StepOneNode();
         }
 
         // Update servo axis positions & load factors + screw curve + spare-part wear

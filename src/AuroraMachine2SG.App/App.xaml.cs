@@ -39,17 +39,21 @@ public partial class App : Application
                     runtime.Hive.SwipeBadge("SMOKE-L8", "Wang Xiaoming", "PRI", PermissionLevel.Admin);
                     runtime.StartProduction();
                     for (int i = 0; i < 4; i++) runtime.StepSimulationCycle();
-                    mainWin.CaptureWindowScreenshot(Path.Combine(outDir, "smoke_home_running.png"));
+                    mainWin.CaptureWindowScreenshot(Path.Combine(outDir, "smoke_home_devtrace.png"));
                 }
                 else if (step == 2)
                 {
-                    shellVm.TryNavigate("Monitoring", "FATP Cpk");
-                    mainWin.CaptureWindowScreenshot(Path.Combine(outDir, "smoke_fatp_cpk.png"));
+                    shellVm.TryNavigate("Control", "Sequence");
+                    if (shellVm.ControlVM.SelectedSequence?.Nodes.Count > 2)
+                        shellVm.ControlVM.SelectedSequence.Nodes[2].HasBreakpoint = true;
+                    mainWin.CaptureWindowScreenshot(Path.Combine(outDir, "smoke_sequence_flowchart.png"));
                 }
                 else if (step == 3)
                 {
-                    shellVm.TryNavigate("Recipe", "Teaching");
-                    mainWin.CaptureWindowScreenshot(Path.Combine(outDir, "smoke_teaching.png"));
+                    shellVm.TryNavigate("Control", "Device");
+                    if (shellVm.ControlVM.SelectedDevice is { } dev)
+                        shellVm.ControlVM.LastDeviceResponse = runtime.ExecuteSimulatedDeviceTest(dev, "TRIGGER_READ", "HSG-V54-99001", false);
+                    mainWin.CaptureWindowScreenshot(Path.Combine(outDir, "smoke_device_testbench.png"));
                 }
                 else
                 {

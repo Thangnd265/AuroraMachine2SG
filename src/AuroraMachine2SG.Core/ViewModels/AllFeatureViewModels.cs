@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Text;
 using AuroraMachine2SG.Core.Models;
+using AuroraMachine2SG.Core.Sdk;
 using AuroraMachine2SG.Core.Services;
 
 namespace AuroraMachine2SG.Core.ViewModels;
@@ -20,7 +21,8 @@ public sealed class MainShellViewModel : ObservableObject
     private string _activeMainMenu = "Main";
     private string _activeSubMenu = "Main";
     private bool _isScreenLocked;
-    private string _statusBanner = "RSMS-001 Ready (Simulation Mode)";
+    private bool _showDevTraceDock = true;
+    private string _statusBanner = "RSMS-001 Ready (Simulation & Dev Platform Mode)";
 
     public MachineRuntime Runtime { get; }
     public ControlViewModel ControlVM { get; }
@@ -56,6 +58,7 @@ public sealed class MainShellViewModel : ObservableObject
     public string ActiveSubMenu { get => _activeSubMenu; private set => SetProperty(ref _activeSubMenu, value); }
     public bool ShowSubMenuBar => ActiveMainMenu != "Main";
     public bool IsScreenLocked { get => _isScreenLocked; set => SetProperty(ref _isScreenLocked, value); }
+    public bool ShowDevTraceDock { get => _showDevTraceDock; set => SetProperty(ref _showDevTraceDock, value); }
     public string StatusBanner { get => _statusBanner; set => SetProperty(ref _statusBanner, value); }
 
     public bool TryNavigate(string mainMenu, string? subMenu = null)
@@ -89,6 +92,14 @@ public sealed class MainShellViewModel : ObservableObject
 public sealed class ControlViewModel : ObservableObject
 {
     private AxisStatus? _selectedAxis;
+    private SequenceRunner? _selectedSequence;
+    private SequenceNode? _selectedNode;
+    private DeviceEntry? _selectedDevice;
+    private string _deviceTestCmd = "TRIGGER_READ";
+    private string _deviceCustomArg = "";
+    private bool _deviceForceNg;
+    private string _lastDeviceResponse = "Select a device on the left and click Execute Test Command.";
+    private string _eventToPublish = "EVENT_MANUAL_LOADING";
     private double _jogStepMm = 5.0;
     private double _calibOffsetX = 0.012;
     private double _calibOffsetY = -0.008;
@@ -98,6 +109,22 @@ public sealed class ControlViewModel : ObservableObject
     public MachineRuntime Runtime { get; }
 
     public AxisStatus? SelectedAxis { get => _selectedAxis; set => SetProperty(ref _selectedAxis, value); }
+    public SequenceRunner? SelectedSequence
+    {
+        get => _selectedSequence;
+        set
+        {
+            if (SetProperty(ref _selectedSequence, value))
+                SelectedNode = value?.Nodes.FirstOrDefault();
+        }
+    }
+    public SequenceNode? SelectedNode { get => _selectedNode; set => SetProperty(ref _selectedNode, value); }
+    public DeviceEntry? SelectedDevice { get => _selectedDevice; set => SetProperty(ref _selectedDevice, value); }
+    public string DeviceTestCmd { get => _deviceTestCmd; set => SetProperty(ref _deviceTestCmd, value); }
+    public string DeviceCustomArg { get => _deviceCustomArg; set => SetProperty(ref _deviceCustomArg, value); }
+    public bool DeviceForceNg { get => _deviceForceNg; set => SetProperty(ref _deviceForceNg, value); }
+    public string LastDeviceResponse { get => _lastDeviceResponse; set => SetProperty(ref _lastDeviceResponse, value); }
+    public string EventToPublish { get => _eventToPublish; set => SetProperty(ref _eventToPublish, value); }
     public double JogStepMm { get => _jogStepMm; set => SetProperty(ref _jogStepMm, value); }
     public double CalibOffsetX { get => _calibOffsetX; set => SetProperty(ref _calibOffsetX, value); }
     public double CalibOffsetY { get => _calibOffsetY; set => SetProperty(ref _calibOffsetY, value); }
@@ -108,6 +135,15 @@ public sealed class ControlViewModel : ObservableObject
     {
         Runtime = runtime;
         _selectedAxis = runtime.Axes.FirstOrDefault();
+        _selectedSequence = runtime.ActiveSequences.FirstOrDefault();
+        _selectedNode = _selectedSequence?.Nodes.FirstOrDefault();
+        _selectedDevice = runtime.Devices.FirstOrDefault();
+    }
+
+    public void RefreshSelectionsAfterProfileSwitch()
+    {
+        SelectedSequence = Runtime.ActiveSequences.FirstOrDefault();
+        SelectedDevice = Runtime.Devices.FirstOrDefault();
     }
 
     public void JogAxis(string axisName, double deltaMm)

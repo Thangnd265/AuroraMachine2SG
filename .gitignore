@@ -5,6 +5,7 @@ obj/
 .vs/
 .agents/
 _out/
+_publish/
 TestResults/
 *.tmp
 Thumbs.db

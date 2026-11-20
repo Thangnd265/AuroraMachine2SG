@@ -1,23 +1,28 @@
-# AuroraMachine2SG (v2.6.7.6 Standalone 1:1 WPF Clone)
+# AuroraMachine2SG — Extensible Simulation & Custom Machine Development Platform (v2.6.7.6)
 
-Standalone `.NET 8` Windows WPF desktop reconstruction of **LG PRI Aurora 2.x SG Standard Equipment Controller (`RSMS-001` v2.6.7.6)**, built with zero proprietary dependencies (`Aurora.exe`, `DevExpress`, `PriLicenseCheckerLib`, or hardware vendor DLLs not required).
+Standalone `.NET 8` Windows WPF platform replicating **LG PRI Aurora 2.x SG (`v2.6.7.6`)** so engineers can develop, customize, simulate, and visually debug machine control programs on **any PC without `Aurora.exe`, `PriLicenseCheckerLib`, `DevExpress`, or `.NET` installed**.
 
-## Quick Run
+## 1. Run Immediately (Zero-Install Portable or Source Mode)
 
-```powershell
-# Build & Run Unit Tests
-dotnet build AuroraMachine2SG.sln
-dotnet run --project tests\AuroraMachine2SG.Tests
+- **Portable Executable (Copy to any Windows 10/11 x64 PC without Aurora or .NET)**:
+  `_publish\AuroraMachine2SG_Portable\AuroraMachine2SG.exe`
+- **From Source (after editing custom machine C# code)**:
+  ```powershell
+  dotnet build AuroraMachine2SG.sln
+  dotnet run --project tests\AuroraMachine2SG.Tests
+  dotnet run --project src\AuroraMachine2SG.App
+  ```
+- **Re-build Portable Folder after Code Changes**: Run `Publish_Portable.bat`.
 
-# Start the Equipment HMI Application
-dotnet run --project src\AuroraMachine2SG.App
-```
+## 2. How to Develop a Custom Machine on This Platform
 
-## Included Subsystems (6 Main Menus / 25 Subviews / 5 Dialogs)
-- **Top Shell & HIVE 3.x Bar**: `Play` / `Pause` / `Stop` (`UCHiveIndicator`), `Open Folder`, `JOG` Multi-Axis Pendant, `Weekly`/`Monthly` PM Counter + live 21×21 QR Code, Active Device pills, 4-language switcher (`en-US`, `ko-KR`, `zh-CN`, `hi-IN`), `ScreenLock` safety overlay, and Badge/Password RBAC Login (`L1/L3/L5/L8`).
-- **Main (`Home`)**: Alarm banner (`Code`, `Category`, `ALARM TIME`, `Material`, `EMO TEST`, `Ready`), `MultiSequence` station map (`HSG` 5-stage + `MPS` 2-stage + right-click `Remove Product` tossing), Door Open/Lock & Mode interlocks (`CPK`, `PDCA`, `PDCA OFF`, `GRR`, `DRY-RUN`, `HERMES`, `MPS Use`), `Cycle Time`/`UPH`/`UPD`, Yield Pie Chart, Gantry Screw Torque-Angle Curve, Cassette/Tray matrix, Latest History, and Daily/Weekly UPH/UPD charts.
-- **Control**: `Manual`, `Calibration` (9-point XYTheta), `Device` (20 simulated devices), `Sequence`, `WMX3 Motion Test`, `BUSOP` (`Force`, `LoadCell`, `Vision T31`).
-- **Recipe**: `MainRecipe` & `CameraRecipe`, `Teaching` (`WMX3PositionRecipe` multi-tab card editor with `Clone Card To Tab`), `Model` (`MetalModel`).
-- **Alarm**: `AlarmHistory`, `Tossing List`, `NG List`, `AlarmDescription` (EN/KO/ZH search & solutions), `AlarmValidationReport`.
-- **Monitoring**: `WMX3 IO` (16-In / 16-Out matrix), `FATP Cpk` (`SpcCalculator` `Cp`/`Cpk`/`USL`/`LSL` charts + CSV export), `PDCADataMonitoring`, `PerformanceMetrics` (OEE + CSV export), `LoadFactor`.
-- **Setting**: `EquipSetting` + dual HIVE Server/Emulator logging, `SpareParts` (bilingual `EN;ZH`, threshold alarms, `String Generator`), `LogSetting` (20-slot cap), `BackUp` (ZIP), `Shortcut` (`Ctrl+P` PNG screenshot).
+1. Open `src/AuroraMachine2SG.Core/Sdk/EquipmentSdk.cs` and duplicate `CustomStarterMachineSetup : IEquipmentSetup` (or compile a separate `.NET 8` class library referencing `AuroraMachine2SG.Core.dll` and load it at runtime via the yellow **`+ .DLL`** button on the top bar!).
+2. Register your machine's devices in `CreateDevices()` and build state-machine flowcharts in `CreateSequences(SequenceContext ctx)` using `SequenceBuilder`:
+   - `.AddAction("NODE_ID", ctx => ...)`
+   - `.AddDecision("DECIDE_ID", (ctx, branches) => "NEXT_NODE")`
+   - `.AddEventAcceptor("WAIT_ID", "EVENT_NAME", ctx => ...)`
+   - `.Flow("Init", "NODE_1", "NODE_2", "Final")`
+3. Launch the app and monitor what your program is doing in real time:
+   - **Bottom `Dev Trace` Dock** (visible across all menus): Live active node per sequence + millisecond `HisLogger` stream.
+   - **`Control > Sequence`**: Visual node-and-arrow flowchart with `Run All`, `Pause`, `Step 1 Node`, `Cycle Stop`, `Breakpoint`, `Arm Force Error`, `Publish Event`, and `Speed (0.25x..4x)`.
+   - **`Control > Device`**: Interactive Simulation Test Bench (`Force NG`, custom barcode/payload, import existing Aurora `Doc\Data` `_config_*` folders).
