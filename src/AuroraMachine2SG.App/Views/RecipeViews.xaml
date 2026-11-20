@@ -1,0 +1,109 @@
+<UserControl x:Class="AuroraMachine2SG.App.Views.RecipeViews"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Background="#F8FAFC" FontSize="12">
+    <Grid Margin="12">
+        <!-- 1. Recipe (MainRecipe + CameraRecipe) -->
+        <Grid Visibility="{Binding ActiveSubMenu, Converter={StaticResource ConvStrEqVis}, ConverterParameter='Recipe'}">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+            <GroupBox Grid.Column="0" Header="MainRecipe Process Parameters" Style="{StaticResource StGroupBox21}">
+                <StackPanel Margin="12">
+                    <TextBlock Text="Active Model Name" FontWeight="SemiBold"/>
+                    <TextBox Text="{Binding RecipeVM.MainRecipe.ActiveModelName}" Padding="6" Margin="0,4,0,10"/>
+                    <TextBlock Text="Target Gantry Screw Torque (Nm)" FontWeight="SemiBold"/>
+                    <TextBox Text="{Binding RecipeVM.MainRecipe.TargetScrewTorqueNm}" Padding="6" Margin="0,4,0,10"/>
+                    <TextBlock Text="Screw Torque NG Upper Limit (Nm)" FontWeight="SemiBold"/>
+                    <TextBox Text="{Binding RecipeVM.MainRecipe.ScrewTorqueNgLimitNm}" Padding="6" Margin="0,4,0,10"/>
+                    <TextBlock Text="Align Tolerance (mm)" FontWeight="SemiBold"/>
+                    <TextBox Text="{Binding RecipeVM.MainRecipe.AlignToleranceMm}" Padding="6" Margin="0,4,0,14"/>
+                    <Button Content="Save Main &amp; Camera Recipe" Style="{StaticResource StRoundedButton}" Background="#8DD471" Width="210" Height="36" HorizontalAlignment="Left" Click="SaveRecipe_Click"/>
+                </StackPanel>
+            </GroupBox>
+            <GroupBox Grid.Column="1" Header="CameraRecipe (Cognex / Keyence Vision Exposure &amp; Gain)" Style="{StaticResource StGroupBox22}">
+                <StackPanel Margin="12">
+                    <TextBlock Text="Vision Exposure Time (ms)" FontWeight="SemiBold"/>
+                    <TextBox Text="{Binding RecipeVM.MainRecipe.VisionExposureMs}" Padding="6" Margin="0,4,0,10"/>
+                    <TextBlock Text="Camera Sensor Gain (dB)" FontWeight="SemiBold"/>
+                    <TextBox Text="{Binding RecipeVM.MainRecipe.VisionGainDb}" Padding="6" Margin="0,4,0,10"/>
+                    <TextBlock Text="Auto-Tossing Max Retry Count" FontWeight="SemiBold"/>
+                    <TextBox Text="{Binding RecipeVM.MainRecipe.MaxRetryCount}" Padding="6" Margin="0,4,0,10"/>
+                </StackPanel>
+            </GroupBox>
+        </Grid>
+
+        <!-- 2. Teaching (Exact UCTeachingWMX3PositionView layout) -->
+        <Grid Visibility="{Binding ActiveSubMenu, Converter={StaticResource ConvStrEqVis}, ConverterParameter='Teaching'}">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+
+            <!-- Top Tab Selector + Add/Del/Save All + Clone To -->
+            <DockPanel Grid.Row="0" Margin="0,0,0,8">
+                <StackPanel Orientation="Horizontal" DockPanel.Dock="Left">
+                    <ListBox ItemsSource="{Binding RecipeVM.TabNames}" SelectedItem="{Binding RecipeVM.SelectedTab, Mode=TwoWay}"
+                             BorderThickness="1" Background="White" Height="34">
+                        <ListBox.ItemsPanel>
+                            <ItemsPanelTemplate><StackPanel Orientation="Horizontal"/></ItemsPanelTemplate>
+                        </ListBox.ItemsPanel>
+                    </ListBox>
+                    <Button Content="+ Tab" Style="{StaticResource StRoundedButton}" Margin="8,0,4,0" Width="68" Click="AddTab_Click"/>
+                    <Button Content="- Tab" Style="{StaticResource StRoundedButton}" Margin="0,0,8,0" Width="68" Click="DelTab_Click"/>
+                    <Button Content="Save All" Style="{StaticResource StRoundedButton}" Background="#8DD471" Width="95" Click="SaveRecipe_Click"/>
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                    <Button Content="Clone Card To Tab..." Style="{StaticResource StRoundedButton}" Background="#E0E7FF" Width="155" Click="CloneTo_Click"/>
+                </StackPanel>
+            </DockPanel>
+
+            <!-- Motion Add / Reload Bar -->
+            <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,8">
+                <ComboBox ItemsSource="{Binding RecipeVM.TeachingData.MotionIds}" SelectedItem="{Binding RecipeVM.SelectedMotionToAdd}" Width="210" Height="32" Margin="0,0,8,0"/>
+                <Button Content="+ Add Motion Card" Style="{StaticResource StRoundedButton}" Width="140" Margin="0,0,8,0" Click="AddMotion_Click"/>
+                <Button Content="Reload JSON" Style="{StaticResource StRoundedButton}" Width="110" Click="Reload_Click"/>
+            </StackPanel>
+
+            <!-- WMX3 Teaching Cards -->
+            <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto">
+                <ItemsControl ItemsSource="{Binding RecipeVM.ActiveTabCards}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <GroupBox Header="{Binding MotionId}" Style="{StaticResource StGroupBox21}" Margin="0,0,0,10">
+                                <DataGrid ItemsSource="{Binding Points}" AutoGenerateColumns="False" CanUserAddRows="False">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Header="Position Name" Binding="{Binding Name}" Width="160" IsReadOnly="True"/>
+                                        <DataGridTextColumn Header="Target X (mm)" Binding="{Binding TargetX, StringFormat={}{0:F2}}" Width="130"/>
+                                        <DataGridTextColumn Header="Target Y (mm)" Binding="{Binding TargetY, StringFormat={}{0:F2}}" Width="130"/>
+                                        <DataGridTextColumn Header="Target Z (mm)" Binding="{Binding TargetZ, StringFormat={}{0:F2}}" Width="130"/>
+                                        <DataGridTextColumn Header="Velocity (mm/s)" Binding="{Binding Velocity, StringFormat={}{0:F1}}" Width="130"/>
+                                        <DataGridTextColumn Header="Accel (mm/s²)" Binding="{Binding Accel, StringFormat={}{0:F0}}" Width="130"/>
+                                        <DataGridTextColumn Header="Decel (mm/s²)" Binding="{Binding Decel, StringFormat={}{0:F0}}" Width="*"/>
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                            </GroupBox>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+        </Grid>
+
+        <!-- 3. Model (MetalModel) -->
+        <GroupBox Header="Product Model Registry (MetalModel)" Style="{StaticResource StGroupBox22}"
+                  Visibility="{Binding ActiveSubMenu, Converter={StaticResource ConvStrEqVis}, ConverterParameter='Model'}">
+            <DataGrid ItemsSource="{Binding RecipeVM.Models}" SelectedItem="{Binding RecipeVM.SelectedModel}" AutoGenerateColumns="False">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="Model ID" Binding="{Binding ModelId}" Width="180"/>
+                    <DataGridTextColumn Header="Product Code" Binding="{Binding ProductCode}" Width="160"/>
+                    <DataGridTextColumn Header="Length (mm)" Binding="{Binding LengthMm}" Width="130"/>
+                    <DataGridTextColumn Header="Width (mm)" Binding="{Binding WidthMm}" Width="130"/>
+                    <DataGridTextColumn Header="Screw Count" Binding="{Binding ScrewCount}" Width="120"/>
+                    <DataGridCheckBoxColumn Header="Enable MPS" Binding="{Binding EnableMps}" Width="*"/>
+                </DataGrid.Columns>
+            </DataGrid>
+        </GroupBox>
+    </Grid>
+</UserControl>

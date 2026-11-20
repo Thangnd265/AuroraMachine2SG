@@ -1,0 +1,97 @@
+<UserControl x:Class="AuroraMachine2SG.App.Views.AlarmViews"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Background="#F8FAFC" FontSize="12">
+    <Grid Margin="12">
+        <!-- 1. AlarmHistory -->
+        <GroupBox Header="Equipment Alarm History &amp; HIVE Downtime Records" Style="{StaticResource StGroupBox22}"
+                  Visibility="{Binding ActiveSubMenu, Converter={StaticResource ConvStrEqVis}, ConverterParameter='AlarmHistory'}">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+                <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                    <Button Content="Trigger Sample Servo Alarm (2001)" Style="{StaticResource StRoundedButton}" Background="#FDE2E2" Width="230" Margin="0,0,8,0" Click="Trig2001_Click"/>
+                    <Button Content="Trigger Sample Screw NG Alarm (3050)" Style="{StaticResource StRoundedButton}" Background="#FDE2E2" Width="240" Margin="0,0,8,0" Click="Trig3050_Click"/>
+                    <Button Content="Open HIVE Report End / Reset Alarm" Style="{StaticResource StRoundedButton}" Background="#8DD471" Width="235" Click="OpenReset_Click"/>
+                </StackPanel>
+                <DataGrid Grid.Row="1" ItemsSource="{Binding Runtime.AlarmHistory}" AutoGenerateColumns="False" IsReadOnly="True">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="Timestamp" Binding="{Binding Time, StringFormat={}{0:yyyy-MM-dd HH:mm:ss}}" Width="165"/>
+                        <DataGridTextColumn Header="Code" Binding="{Binding Code}" Width="80"/>
+                        <DataGridTextColumn Header="Category" Binding="{Binding Category}" Width="105"/>
+                        <DataGridTextColumn Header="Station" Binding="{Binding Station}" Width="120"/>
+                        <DataGridTextColumn Header="Description" Binding="{Binding Description}" Width="*"/>
+                        <DataGridTextColumn Header="Downtime (min)" Binding="{Binding DowntimeMinutes, StringFormat={}{0:F2}}" Width="115"/>
+                        <DataGridTextColumn Header="Cleared By" Binding="{Binding ClearedByBadge}" Width="140"/>
+                    </DataGrid.Columns>
+                </DataGrid>
+            </Grid>
+        </GroupBox>
+
+        <!-- 2. Tossing List -->
+        <GroupBox Header="Tossing History (HSG &amp; MPS Stations — Part SN Reported to HIVE 3.1)" Style="{StaticResource StGroupBox21}"
+                  Visibility="{Binding ActiveSubMenu, Converter={StaticResource ConvStrEqVis}, ConverterParameter='Tossing List'}">
+            <DataGrid ItemsSource="{Binding Runtime.TossingAndNgRecords}" AutoGenerateColumns="False" IsReadOnly="True">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="Timestamp" Binding="{Binding Time, StringFormat={}{0:yyyy-MM-dd HH:mm:ss}}" Width="165"/>
+                    <DataGridTextColumn Header="Type" Binding="{Binding Kind}" Width="90"/>
+                    <DataGridTextColumn Header="Station" Binding="{Binding Station}" Width="95"/>
+                    <DataGridTextColumn Header="Product SN" Binding="{Binding SerialNo}" Width="170"/>
+                    <DataGridTextColumn Header="Part SN" Binding="{Binding PartSn}" Width="130"/>
+                    <DataGridTextColumn Header="Reason" Binding="{Binding Reason}" Width="*"/>
+                </DataGrid.Columns>
+            </DataGrid>
+        </GroupBox>
+
+        <!-- 3. NG List -->
+        <GroupBox Header="NG Defect History (HSG &amp; MPS Stations)" Style="{StaticResource StGroupBox23}"
+                  Visibility="{Binding ActiveSubMenu, Converter={StaticResource ConvStrEqVis}, ConverterParameter='NG List'}">
+            <DataGrid ItemsSource="{Binding Runtime.TossingAndNgRecords}" AutoGenerateColumns="False" IsReadOnly="True">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="Timestamp" Binding="{Binding Time, StringFormat={}{0:yyyy-MM-dd HH:mm:ss}}" Width="165"/>
+                    <DataGridTextColumn Header="Kind" Binding="{Binding Kind}" Width="90"/>
+                    <DataGridTextColumn Header="Station" Binding="{Binding Station}" Width="95"/>
+                    <DataGridTextColumn Header="Serial No" Binding="{Binding SerialNo}" Width="170"/>
+                    <DataGridTextColumn Header="Failure Reason" Binding="{Binding Reason}" Width="*"/>
+                </DataGrid.Columns>
+            </DataGrid>
+        </GroupBox>
+
+        <!-- 4. AlarmDescription (Multilingual EN/KO/ZH Solution Viewer per v2.6.7.5) -->
+        <GroupBox Header="Multilingual Alarm Description &amp; Recovery Solutions (EN / KO / ZH)" Style="{StaticResource StGroupBox22}"
+                  Visibility="{Binding ActiveSubMenu, Converter={StaticResource ConvStrEqVis}, ConverterParameter='AlarmDescription'}">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+                <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                    <TextBlock Text="Search Code / Text (EN/KO/ZH):" VerticalAlignment="Center" FontWeight="Bold" Margin="0,0,8,0"/>
+                    <TextBox Text="{Binding AlarmVM.SearchKeyword, UpdateSourceTrigger=PropertyChanged}" Width="320" Padding="5"/>
+                </StackPanel>
+                <DataGrid Grid.Row="1" ItemsSource="{Binding AlarmVM.FilteredCatalog}" AutoGenerateColumns="False" IsReadOnly="True">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="Code" Binding="{Binding Code}" Width="70"/>
+                        <DataGridTextColumn Header="Category" Binding="{Binding Category}" Width="95"/>
+                        <DataGridTextColumn Header="Unit" Binding="{Binding Unit}" Width="110"/>
+                        <DataGridTextColumn Header="Description (EN)" Binding="{Binding DescEn}" Width="210"/>
+                        <DataGridTextColumn Header="Description (KO)" Binding="{Binding DescKo}" Width="200"/>
+                        <DataGridTextColumn Header="Description (ZH)" Binding="{Binding DescZh}" Width="170"/>
+                        <DataGridTextColumn Header="Recovery Solution" Binding="{Binding SolutionEn}" Width="*"/>
+                    </DataGrid.Columns>
+                </DataGrid>
+            </Grid>
+        </GroupBox>
+
+        <!-- 5. AlarmValidationReport -->
+        <GroupBox Header="HIVE Alarm Standard Format v1.1 Validation Report" Style="{StaticResource StGroupBox21}"
+                  Visibility="{Binding ActiveSubMenu, Converter={StaticResource ConvStrEqVis}, ConverterParameter='AlarmValidationReport'}">
+            <StackPanel Margin="12">
+                <Button Content="Re-Run Alarm Standard Validation" Style="{StaticResource StRoundedButton}" Background="#8DD471" Width="240" HorizontalAlignment="Left" Margin="0,0,0,12" Click="Revalidate_Click"/>
+                <ListBox ItemsSource="{Binding AlarmVM.ValidationMessages}" FontSize="13" FontWeight="SemiBold" Padding="8"/>
+            </StackPanel>
+        </GroupBox>
+    </Grid>
+</UserControl>
